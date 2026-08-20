@@ -1,0 +1,49 @@
+# Runs a pod that trains the ML model once and then stops
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: ${PROJECT_NAME}-training-job
+  namespace: ${K8S_NAMESPACE}
+  labels:
+    app: ${PROJECT_NAME}-training
+spec:
+  backoffLimit: 0
+  template:
+    metadata:
+      labels:
+        app: ${PROJECT_NAME}-training
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: training
+          image: ${IMAGE_NAME}-training-${ARCH}:latest
+          imagePullPolicy: Never
+          command: ["titanic-train"]
+          env:
+            - name: TRAINING_DATA_DIR
+              value: /opt/ml/input/data/training
+            - name: MODEL_DIR
+              value: /opt/ml/model
+            - name: OUTPUT_DIR
+              value: /opt/ml/output
+          volumeMounts:
+            - name: training-data
+              mountPath: /opt/ml/input/data/training
+              readOnly: true
+            - name: model-output
+              mountPath: /opt/ml/model
+            - name: predictions-output
+              mountPath: /opt/ml/output
+      volumes:
+        - name: training-data
+          hostPath:
+            path: ${PROJECT_DIR}/input/data/training
+            type: Directory
+        - name: model-output
+          hostPath:
+            path: ${PROJECT_DIR}/models
+            type: DirectoryOrCreate
+        - name: predictions-output
+          hostPath:
+            path: ${PROJECT_DIR}/predictions
+            type: DirectoryOrCreate

@@ -1,0 +1,26 @@
+# values-prod.yaml - production overlay, applied on top of values.yaml:
+#   make helm-deploy-inference HELM_ENV=prod
+# Only the keys that differ from values.yaml are listed here.
+
+projectName: titanic-kubernetes-helm
+namespace: titanic-kubernetes-helm-prod-namespace
+
+training:
+  # Training never runs in production
+  enabled: false
+
+inference:
+  enabled: true
+
+  # More replicas than pre-production to absorb the load
+  replicaCount: 3
+
+  # Local image, no registry: latest + Never. '-arm64' is the deploy arch
+  # (the OrbStack node), independent of the Makefile build-time ARCH.
+  image: titanic-kubernetes-helm-image-inference-arm64
+  tag: latest
+  imagePullPolicy: Never
+
+  containerPort: 8080
+  serviceType: LoadBalancer
+  servicePort: 8080

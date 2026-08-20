@@ -1,0 +1,8 @@
+# templates/namespace.yaml
+#
+# {{ .Values.namespace }} replaces the former ${K8S_NAMESPACE} variable.
+# Helm injects the values from values.yaml automatically.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: {{ .Values.namespace }}

@@ -1,0 +1,37 @@
+{{- if .Values.inference.enabled }}
+# templates/inference-deployment.yaml
+#
+# Deployment of the inference API.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Values.projectName }}-inference
+  namespace: {{ .Values.namespace }}
+  labels:
+    app: {{ .Values.projectName }}-inference
+spec:
+  replicas: {{ .Values.inference.replicaCount }}
+  selector:
+    matchLabels:
+      app: {{ .Values.projectName }}-inference
+  template:
+    metadata:
+      labels:
+        app: {{ .Values.projectName }}-inference
+    spec:
+      containers:
+        - name: inference
+          image: {{ .Values.inference.image }}:{{ .Values.inference.tag }}
+          imagePullPolicy: {{ .Values.inference.imagePullPolicy }}
+          ports:
+            - containerPort: {{ .Values.inference.containerPort }}
+          {{- with .Values.inference.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          env:
+            - name: MODEL_DIR
+              value: /app/output/model
+            - name: OUTPUT_DIR
+              value: /app/output
+{{- end }}

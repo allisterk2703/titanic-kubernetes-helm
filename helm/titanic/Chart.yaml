@@ -1,0 +1,7 @@
+apiVersion: v2
+name: titanic
+description: Helm chart for the Titanic project (training + inference)
+icon: https://raw.githubusercontent.com/allisterk2703/titanic-kubernetes-helm/main/.github/titanic-ship.png
+type: application
+version: 0.1.0
+appVersion: "1.0.0"

@@ -1,0 +1,38 @@
+# argocd/application.yaml
+#
+# ArgoCD Application: watches the Helm chart of this repository and keeps the
+# cluster in sync with the main branch.
+#
+#   kubectl apply -f argocd/application.yaml   (or: make argocd-deploy)
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: titanic
+  namespace: argocd
+  finalizers:
+    # Deleting the Application also deletes the resources it deployed
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+
+  source:
+    repoURL: https://github.com/allisterk2703/titanic-kubernetes-helm.git
+    targetRevision: main
+    path: helm/titanic
+    helm:
+      valueFiles:
+        - values.yaml
+
+  destination:
+    server: https://kubernetes.default.svc
+    # The Namespace is created by the chart itself (templates/namespace.yaml)
+    namespace: titanic-kubernetes-helm-namespace
+
+  syncPolicy:
+    automated:
+      # Delete from the cluster whatever disappears from git
+      prune: true
+      # Reapply the state from git if someone edits the cluster by hand
+      selfHeal: true
+    syncOptions:
+      - ServerSideApply=true

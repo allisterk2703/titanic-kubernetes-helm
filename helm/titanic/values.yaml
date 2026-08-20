@@ -1,0 +1,67 @@
+# ============================================================
+# values.yaml - central configuration of the Titanic Helm chart
+#
+# Edit the configuration here. These values replace the ${...}
+# variables that used to be injected with envsubst.
+# ============================================================
+
+# Project name (used to name the Kubernetes resources)
+projectName: titanic-kubernetes-helm
+
+# Kubernetes namespace everything is deployed into
+namespace: titanic-kubernetes-helm-namespace
+
+# kubectl context (OrbStack) is handled by kubectl, not by Helm
+
+# ============================================================
+# Training Job
+# ============================================================
+training:
+  # The training Job is a one-off task and depends on hostPath directories
+  # specific to the machine: disabled by default so that ArgoCD only manages
+  # the inference API. Enabled on demand by: make helm-run-training
+  enabled: false
+
+  # Training Docker image name (without the tag)
+  image: titanic-kubernetes-helm-image-training-arm64
+  tag: latest
+  # imagePullPolicy: Never = use the local image, never pull from a registry
+  imagePullPolicy: Never
+
+  # Directories mounted from the host machine (hostPath)
+  # These paths belong to the machine running Kubernetes
+  hostPaths:
+    trainingData: ""      # absolute path, e.g. /Users/you/project/input/data/training
+    modelOutput: ""       # e.g. /Users/you/project/models
+    predictionsOutput: "" # e.g. /Users/you/project/predictions
+
+# ============================================================
+# Inference API (Deployment + Service)
+# ============================================================
+inference:
+  enabled: true
+
+  # Number of replicas (pods) serving the API
+  replicaCount: 2
+
+  # Inference Docker image
+  image: titanic-kubernetes-helm-image-inference-arm64
+  tag: latest
+  imagePullPolicy: Never
+
+  # Port exposed by the container
+  containerPort: 8080
+
+  # Kubernetes service type
+  # LoadBalancer = reachable from outside the cluster
+  serviceType: LoadBalancer
+  servicePort: 8080
+
+  # Same values as the raw manifest in k8s/inference-deployment.yaml
+  resources:
+    requests:
+      cpu: "500m"
+      memory: "512Mi"
+    limits:
+      cpu: "2"
+      memory: "2Gi"

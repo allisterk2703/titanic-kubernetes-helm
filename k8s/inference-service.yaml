@@ -1,0 +1,14 @@
+# Exposes the inference API on a stable port accessible from outside the cluster
+apiVersion: v1
+kind: Service
+metadata:
+  name: ${PROJECT_NAME}-inference-svc
+  namespace: ${K8S_NAMESPACE}
+spec:
+  selector:
+    app: ${PROJECT_NAME}-inference
+  ports:
+    - name: http
+      port: 8080
+      targetPort: 8080
+  type: LoadBalancer

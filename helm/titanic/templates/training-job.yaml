@@ -1,0 +1,54 @@
+{{- if .Values.training.enabled }}
+# templates/training-job.yaml
+#
+# Helm template of the training Job.
+# The {{ .Values.xxx }} placeholders replace the ${XXX} of the envsubst version.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ .Values.projectName }}-training-job
+  namespace: {{ .Values.namespace }}
+  labels:
+    app: {{ .Values.projectName }}-training
+spec:
+  backoffLimit: 0
+  template:
+    metadata:
+      labels:
+        app: {{ .Values.projectName }}-training
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: training
+          image: {{ .Values.training.image }}:{{ .Values.training.tag }}
+          imagePullPolicy: {{ .Values.training.imagePullPolicy }}
+          command: ["titanic-train"]
+          env:
+            - name: TRAINING_DATA_DIR
+              value: /opt/ml/input/data/training
+            - name: MODEL_DIR
+              value: /opt/ml/model
+            - name: OUTPUT_DIR
+              value: /opt/ml/output
+          volumeMounts:
+            - name: training-data
+              mountPath: /opt/ml/input/data/training
+              readOnly: true
+            - name: model-output
+              mountPath: /opt/ml/model
+            - name: predictions-output
+              mountPath: /opt/ml/output
+      volumes:
+        - name: training-data
+          hostPath:
+            path: {{ .Values.training.hostPaths.trainingData }}
+            type: Directory
+        - name: model-output
+          hostPath:
+            path: {{ .Values.training.hostPaths.modelOutput }}
+            type: DirectoryOrCreate
+        - name: predictions-output
+          hostPath:
+            path: {{ .Values.training.hostPaths.predictionsOutput }}
+            type: DirectoryOrCreate
+{{- end }}

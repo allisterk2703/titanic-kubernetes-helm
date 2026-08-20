@@ -1,0 +1,36 @@
+# Keeps a pod running permanently to serve predictions through an API
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ${PROJECT_NAME}-inference
+  namespace: ${K8S_NAMESPACE}
+  labels:
+    app: ${PROJECT_NAME}-inference
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: ${PROJECT_NAME}-inference
+  template:
+    metadata:
+      labels:
+        app: ${PROJECT_NAME}-inference
+    spec:
+      containers:
+        - name: inference
+          image: ${IMAGE_NAME}-inference-${ARCH}:latest
+          imagePullPolicy: Never
+          ports:
+            - containerPort: 8080
+          env:
+            - name: MODEL_DIR
+              value: /app/output/model
+            - name: OUTPUT_DIR
+              value: /app/output
+          resources:
+            requests:
+              cpu: "500m"
+              memory: "512Mi"
+            limits:
+              cpu: "2"
+              memory: "2Gi"

@@ -1,0 +1,44 @@
+numpy
+pandas
+polars
+scipy
+scikit-learn
+imbalanced-learn
+xgboost
+lightgbm
+catboost
+torch
+torchvision
+torchaudio
+torchmetrics
+torchinfo
+# tensorflow-macos
+# tensorflow-metal
+keras
+tf-keras
+keras-tuner
+transformers
+datasets
+evaluate
+accelerate
+nltk
+spacy
+# fasttext
+gensim
+mlflow
+tqdm
+requests
+joblib
+kaggle
+matplotlib
+seaborn
+plotly
+dash
+fastapi
+flask
+uvicorn
+pydantic
+jupyterlab
+notebook
+ipykernel
+ipywidgets

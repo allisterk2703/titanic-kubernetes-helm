@@ -1,0 +1,47 @@
+# Argo Workflow equivalent of k8s/training-job.yaml, submitted to the
+# Argo Workflows instance already running in the cluster (deployed separately,
+# see mk/argo.mk). Same image, env, and hostPath volumes as the plain Job.
+apiVersion: argoproj.io/v1alpha1
+kind: Workflow
+metadata:
+  generateName: ${PROJECT_NAME}-training-
+  namespace: ${ARGO_NAMESPACE}
+  labels:
+    app: ${PROJECT_NAME}-training
+spec:
+  serviceAccountName: argo-workflow
+  entrypoint: train
+  templates:
+    - name: train
+      container:
+        image: ${IMAGE_NAME}-training-${ARCH}:latest
+        imagePullPolicy: Never
+        command: ["titanic-train"]
+        env:
+          - name: TRAINING_DATA_DIR
+            value: /opt/ml/input/data/training
+          - name: MODEL_DIR
+            value: /opt/ml/model
+          - name: OUTPUT_DIR
+            value: /opt/ml/output
+        volumeMounts:
+          - name: training-data
+            mountPath: /opt/ml/input/data/training
+            readOnly: true
+          - name: model-output
+            mountPath: /opt/ml/model
+          - name: predictions-output
+            mountPath: /opt/ml/output
+      volumes:
+        - name: training-data
+          hostPath:
+            path: ${PROJECT_DIR}/input/data/training
+            type: Directory
+        - name: model-output
+          hostPath:
+            path: ${PROJECT_DIR}/models
+            type: DirectoryOrCreate
+        - name: predictions-output
+          hostPath:
+            path: ${PROJECT_DIR}/predictions
+            type: DirectoryOrCreate

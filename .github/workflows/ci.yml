@@ -1,0 +1,198 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+# A new push on the same branch cancels the previous run
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  PYTHON_VERSION: "3.13"
+
+jobs:
+  lint:
+    name: Lint and format
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - name: Install the project with its dev extras
+        run: uv sync --extra dev
+
+      - name: ruff check
+        run: uv run ruff check src/titanic tests
+
+      - name: isort
+        run: uv run isort --check-only --diff src/titanic tests
+
+      - name: black
+        run: uv run black --check --diff src/titanic tests
+
+  test:
+    name: Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - name: Install the project with its dev extras
+        run: uv sync --extra dev
+
+      - name: pytest
+        run: uv run pytest -q tests
+
+  package:
+    name: Wheel
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - name: Build the wheel and the sdist
+        run: uv build
+
+      - name: Check the wheel layout
+        run: |
+          echo "Top-level entries in the wheel:"
+          unzip -Z1 dist/*.whl | cut -d/ -f1 | sort -u
+          # Only the package and its dist-info may sit at the top level
+          test "$(unzip -Z1 dist/*.whl | cut -d/ -f1 | sort -u | grep -vc '^titanic')" -eq 0
+
+      - name: Install the wheel in a clean environment
+        run: |
+          # Outside the repository, so that the source tree cannot shadow the import
+          mkdir -p "$RUNNER_TEMP/wheel-check"
+          cd "$RUNNER_TEMP/wheel-check"
+          uv venv venv
+          VIRTUAL_ENV="$PWD/venv" uv pip install "$GITHUB_WORKSPACE"/dist/*.whl
+
+      - name: Import the package and run the console script
+        run: |
+          cd "$RUNNER_TEMP/wheel-check"
+          ./venv/bin/python -c "import titanic, titanic.api.main; print(titanic.__version__)"
+          ./venv/bin/titanic-train --help > /dev/null
+
+      - name: Check that importing writes nothing to disk
+        run: |
+          cd "$RUNNER_TEMP/wheel-check"
+          leftover="$(ls -A | grep -v '^venv$' || true)"
+          if [ -n "$leftover" ]; then
+            echo "Importing the package created files: $leftover"
+            exit 1
+          fi
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: dist/
+          retention-days: 7
+
+  helm:
+    name: Helm chart
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: azure/setup-helm@v4
+
+      - name: helm lint
+        run: |
+          helm lint helm/titanic
+          # The overlays must lint too, they are what preprod/prod deploy
+          helm lint helm/titanic --values helm/titanic/values-preprod.yaml
+          helm lint helm/titanic --values helm/titanic/values-prod.yaml
+
+      - name: Each environment renders its own namespace and replica count
+        run: |
+          for env in preprod prod; do
+            helm template titanic-$env helm/titanic \
+              --values helm/titanic/values-$env.yaml \
+              | grep -q "namespace: titanic-kubernetes-helm-$env-namespace"
+          done
+          test "$(helm template t helm/titanic -f helm/titanic/values-prod.yaml | grep -c 'replicas: 3')" -eq 1
+
+      - name: Render with the default values (inference only)
+        run: |
+          helm template titanic helm/titanic > /tmp/default.yaml
+          # The training Job must not be rendered when training.enabled is false
+          ! grep -q "kind: Job" /tmp/default.yaml
+
+      - name: Render with the training Job enabled
+        run: |
+          helm template titanic helm/titanic \
+            --set training.enabled=true \
+            --set training.hostPaths.trainingData=/tmp/data \
+            --set training.hostPaths.modelOutput=/tmp/models \
+            --set training.hostPaths.predictionsOutput=/tmp/predictions \
+            | grep -q "kind: Job"
+
+      - name: Validate the manifests against the Kubernetes schemas
+        run: |
+          curl -sSLo kubeconform.tar.gz \
+            https://github.com/yannh/kubeconform/releases/download/v0.6.7/kubeconform-linux-amd64.tar.gz
+          tar -xzf kubeconform.tar.gz kubeconform
+          helm template titanic helm/titanic \
+            --set training.enabled=true \
+            --set training.hostPaths.trainingData=/tmp/data \
+            --set training.hostPaths.modelOutput=/tmp/models \
+            --set training.hostPaths.predictionsOutput=/tmp/predictions \
+            | ./kubeconform -strict -summary -
+
+      - name: Validate the ArgoCD Application manifest
+        run: |
+          # The Application CRD is not part of the Kubernetes schemas
+          ./kubeconform -strict -summary -ignore-missing-schemas argocd/application.yaml
+
+  docker:
+    name: Docker images
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        image: [training, inference]
+        # The .amd64 variants are separate files: they must keep building too
+        variant: ["", ".amd64"]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Create the model artifacts expected by the inference image
+        if: matrix.image == 'inference'
+        run: mkdir -p output/model
+
+      - name: Build ${{ matrix.image }}${{ matrix.variant }}
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: Dockerfile.${{ matrix.image }}${{ matrix.variant }}
+          push: false
+          load: true
+          tags: titanic-${{ matrix.image }}:ci
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: The inference image answers on /health
+        if: matrix.image == 'inference'
+        run: |
+          # Without this the job would pass on an image that cannot serve
+          docker run -d --rm -p 8080:8080 --name inference-ci titanic-inference:ci
+          for _ in $(seq 1 30); do
+            curl -sf http://127.0.0.1:8080/health && break
+            sleep 1
+          done
+          curl -sf http://127.0.0.1:8080/health | grep -q '"status":"ok"'
+          docker stop inference-ci

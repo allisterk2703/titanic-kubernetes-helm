@@ -1,0 +1,37 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+.venv/
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Ruff / linters
+.ruff_cache/
+.pytest_cache/
+
+# Environment
+.env
+.env.*
+# ... except the template, which must stay tracked
+!.env.tmp
+
+# macOS
+.DS_Store
+
+# MLflow
+mlflow.db
+mlruns/
+
+# Build
+dist/
+build/
+*.egg-info/
+.wheel-check/
+
+# Artifacts
+output/
+models/
+predictions/
+logs/

@@ -1,0 +1,32 @@
+# Dockerfile.training
+
+# ---- Stage 1: build the wheel ----
+FROM python:3.13-slim AS builder
+
+WORKDIR /build
+
+RUN pip --no-cache-dir install --upgrade pip build
+
+COPY pyproject.toml README.md LICENSE ./
+COPY src/ src/
+
+RUN python -m build --wheel --outdir /dist
+
+# ---- Stage 2: runtime ----
+FROM python:3.13-slim
+
+WORKDIR /opt/ml/code
+
+COPY --from=builder /dist/*.whl /tmp/
+RUN pip --no-cache-dir install --upgrade pip \
+    && pip --no-cache-dir install /tmp/*.whl \
+    && rm -rf /tmp/*.whl
+
+ENV PYTHONUNBUFFERED=TRUE
+ENV PYTHONDONTWRITEBYTECODE=TRUE
+ENV GIT_PYTHON_REFRESH=quiet
+ENV TITANIC_BASE_DIR=/opt/ml
+
+RUN mkdir -p /opt/ml/input/data /opt/ml/model /opt/ml/output
+
+CMD ["titanic-train"]

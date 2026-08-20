@@ -1,0 +1,5 @@
+# Creates an isolated space in the cluster to group all Titanic project resources together
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: ${K8S_NAMESPACE}
